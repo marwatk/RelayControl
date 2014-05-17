@@ -20,6 +20,8 @@ my $state = getRelayState();
 print( "         1234567890123456\n" );
 print( "Current: $state (" . binaryToHex( $state ) . ")\n" );
 
+my @hex = split//,'0123456789abcdef';
+
 if( defined( $newState ) ) {
     if( $newState =~ /^[10*]+$/ ) {
 
@@ -53,8 +55,7 @@ sub hexToBinary {
     return frontPad( sprintf( "%b", hex( shift ) ), 16 );
 }
 sub binaryToHex {
-    my $in = shift;
-    return sprintf("%x", oct( "0b$in" ) );
+    return unpack( "H*", pack( "B*", shift ) );
 }
 sub binaryToData {
     return pack( "B*", shift );
