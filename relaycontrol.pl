@@ -2,19 +2,34 @@
 
 use strict;
 use warnings;
-use Time::HiRes qw( usleep );
-#Usage: relaycontrol.pl <newstate>
 
-#Example:
-#Turns relay 2 off, relay 3 on, leaves the rest as is
-#relaycontrol.pl *01*************
-#Equivalent:
-#relaycontrol.pl *01
+#Examples:
+
+#relaycontrol.pl 
+#Prints out current state
+
+#relaycontrol.pl 1010000000000000000
+#Turns on relay 1 and 3, turns others off
+
+#relaycontrol.pl 101
+#Turns on relay 1 and 3, turns off 2, leaves others alon
+
+#relaycontrol.pl **1
+#Turns on relay 3, leaves all others along
+
+#relaycontrol.pl all:on
+#Turns on all relays
+
+#relaycontrol.pl all:off
+#Turns off all relays
+
+#relaycontrol.pl 1:on 3:on 5:off
+#Turns on 1 and 3, turns off 5, leaves others along
 
 #Change this to your device or use udev
 my $FILE = "/dev/hidraw0";
 
-my $newState = shift;
+my @ARGS = @ARGV;
 
 #printVersion();
 
@@ -22,37 +37,71 @@ my $state = getRelayState();
 print( "         1234567890123456\n" );
 print( "Current: $state (" . binaryToHex( $state ) . ")\n" );
 
-if( defined( $newState ) ) {
-    if( $newState =~ /^[10*]+$/ ) {
 
-        for( my $i = 0; $i < length( $newState ); $i++ ) {
-            my $newChar = substr( $newState, $i, 1 );
-            if( $newChar eq '1' || $newChar eq '0' ) {
-                substr( $state, $i, 1 ) = $newChar;
+if( scalar( @ARGV ) == 1 && $ARGV[0] =~ /^[10*]+$/ ) {
+    my $newState = $ARGV[0];
+    for( my $i = 0; $i < length( $newState ); $i++ ) {
+        my $newChar = substr( $newState, $i, 1 );
+        if( $newChar eq '1' || $newChar eq '0' ) {
+            substr( $state, $i, 1 ) = $newChar;
+        }
+    }
+    
+    print "Setting: $state (" . binaryToHex( $state ) . ")\n";
+    setRelayState( $state );
+    my $test = $state;
+    $state = getRelayState();
+    print "Result:  $state (" . binaryToHex( $state ) . ")\n";
+    if( $state eq $test ) {
+        print "SUCCESS\n";
+        exit( 0 );
+    }
+    else {
+        print "FAILURE\n";
+        exit( 1 );
+    }
+}
+elsif( scalar( @ARGV ) >= 1 ) {
+    my $newState = $state;
+    foreach my $arg ( @ARGV ) {
+        $arg = lc( $arg );
+        if( $arg =~ /(all|\d+):(off|on)/ ) {
+            my $num = $1;
+            my $on = $2 eq 'on' ? 1 : 0;
+            if( $num eq 'all' ) {
+                $newState = $on ? '1111111111111111' : '0000000000000000';
+            }
+            else {
+                $num--;
+                substr( $newState, $num, 1 ) = $on;
             }
         }
-        
-        print "Setting: $state (" . binaryToHex( $state ) . ")\n";
-        setRelayState( $state );
-        my $test = $state;
-        $state = getRelayState();
-        print "Result:  $state (" . binaryToHex( $state ) . ")\n";
-        if( $state eq $test ) {
-            print "SUCCESS\n";
-            exit( 0 );
-        }
         else {
+            print "Invalid argument: $arg\n";
             print "FAILURE\n";
             exit( 1 );
         }
     }
+    $state = $newState;
+    print "Setting: $state (" . binaryToHex( $state ) . ")\n";
+    setRelayState( $state );
+    my $test = $state;
+    $state = getRelayState();
+    print "Result:  $state (" . binaryToHex( $state ) . ")\n";
+    if( $state eq $test ) {
+        print "SUCCESS\n";
+        exit( 0 );
+    }
     else {
-        print "FAILURE: Invalid new state, only 0, 1 or * allowed\n";
+        print "FAILURE\n";
         exit( 1 );
     }
+    
+    
 }
 
 exit( 0 );
+
 
 sub fixOrder { #Relays map like this: [7,6,5,4,3,2,1,0,15,14,13,12,11,10,9,8]
     my $inState = shift;
